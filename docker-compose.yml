@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  cato-cli-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: catonetworks/cato-cli-mcp:latest
+    container_name: cato-cli-mcp
+    stdin_open: true
+    tty: false
+    environment:
+      # Cato API Configuration
+      # These can be overridden by creating a .env file or passing via command line
+      # Use CATO_BASE_URL (preferred) or CATO_API_HOST (fallback)
+      - CATO_BASE_URL=${CATO_BASE_URL:-}
+      - CATO_API_HOST=${CATO_API_HOST:-api.catonetworks.com}
+      - CATO_ACCOUNT_ID=${CATO_ACCOUNT_ID}
+      - CATO_API_KEY=${CATO_API_KEY}
+    restart: unless-stopped

@@ -1,0 +1,8 @@
+.git
+.gitignore
+*.md
+__pycache__
+*.pyc
+.env
+test_*.py
+WARP.md
