@@ -64,22 +64,27 @@ Add the following to `~/Library/Application Support/Claude/claude_desktop_config
 ```json
 {
   "mcpServers": {
-    "cato-cli": {
+    "cato": {
+      "type": "stdio",
       "command": "docker",
       "args": [
-          "run",
-          "--rm",
-          "-i",
-          "-e", "CATO_API_HOST=api.catonetworks.com",
-          "-e", "CATO_ACCOUNT_ID=<your_account_id>",
-          "-e", "CATO_API_KEY=<your_api_key>",
-          "catonetworks/cato-cli-mcp:latest"
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "CATO_API_HOST=https://api.catonetworks.com/api/v1/graphql2",
+        "-e",
+        "CATO_ACCOUNT_ID=12345",
+        "-e",
+        "CATO_API_KEY=XXXXXXXXXXX",
+        "catonetworks/cato-cli-mcp:latest"
       ],
       "disabled": false,
       "autoApprove": []
     }
   }
 }
+
 ```
 
 ## Available Tools
