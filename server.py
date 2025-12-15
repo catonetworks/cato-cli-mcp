@@ -2,22 +2,262 @@ from mcp.server.fastmcp import FastMCP
 import subprocess
 import json
 import shlex
+import os
+import sys
+import hashlib
+from datetime import datetime, timedelta
+from collections import defaultdict
+from functools import wraps
+
+# Environment variable configuration for response limits
+MAX_RESPONSE_RECORDS = int(os.getenv('CATO_MCP_MAX_RECORDS', '50'))
+MAX_RESPONSE_SIZE_MB = float(os.getenv('CATO_MCP_MAX_SIZE_MB', '5'))
+
+# Timeout configuration (in seconds)
+QUERY_TIMEOUT_SECONDS = int(os.getenv('CATO_MCP_TIMEOUT_SECONDS', '120'))
+
+# Cache configuration
+CACHE_TTL_SECONDS = int(os.getenv('CATO_MCP_CACHE_TTL', '300'))  # 5 minutes default
+
+# Query optimization hints
+QUERY_OPTIMIZATION_HINTS = {
+    'appStats': {
+        'recommended_timeframe': 'last.PT6H',
+        'recommended_measures': ['traffic', 'upstream', 'downstream'],
+        'max_dimensions': 2,
+        'warning_threshold': 10000
+    },
+    'appStatsTimeSeries': {
+        'recommended_buckets': 24,
+        'max_buckets': 168,
+        'recommended_timeframe': 'last.P1D'
+    },
+    'socketPortMetrics': {
+        'recommended_timeframe': 'last.P1D',
+        'max_dimensions': 2
+    },
+    'socketPortMetricsTimeSeries': {
+        'recommended_buckets': 24,
+        'max_buckets': 168
+    },
+    'accountMetrics': {
+        'recommended_timeframe': 'last.P1D',
+        'recommended_buckets': 24,
+        'requires_site_filter': True
+    },
+    'eventsTimeSeries': {
+        'recommended_buckets': 24,
+        'max_buckets': 168,
+        'requires_filter': True
+    }
+}
 
 # Initialize FastMCP server
 # Provides access to real-time Cato Networks data: bandwidth, traffic, sites, users, events, and configuration
 mcp = FastMCP("cato-networks")
 
-def run_cato_command(args: list[str]) -> str:
-    """Helper to run catocli commands."""
+# Query cache
+class QueryCache:
+    """Simple in-memory cache for query results."""
+    
+    def __init__(self, ttl_seconds=CACHE_TTL_SECONDS):
+        self.cache = {}
+        self.ttl = timedelta(seconds=ttl_seconds)
+    
+    def get_key(self, operation, params):
+        """Generate cache key from query parameters."""
+        key_str = f"{operation}:{json.dumps(params, sort_keys=True)}"
+        return hashlib.md5(key_str.encode()).hexdigest()
+    
+    def get(self, operation, params):
+        """Get cached result if available and not expired."""
+        key = self.get_key(operation, params)
+        if key in self.cache:
+            result, timestamp = self.cache[key]
+            if datetime.now() - timestamp < self.ttl:
+                return result
+            else:
+                del self.cache[key]
+        return None
+    
+    def set(self, operation, params, result):
+        """Cache query result."""
+        key = self.get_key(operation, params)
+        self.cache[key] = (result, datetime.now())
+    
+    def clear(self):
+        """Clear all cached results."""
+        self.cache.clear()
+
+# Initialize cache
+query_cache = QueryCache(ttl_seconds=CACHE_TTL_SECONDS)
+
+# Rate limiter
+class RateLimiter:
+    """Simple rate limiter to prevent API abuse."""
+    
+    def __init__(self, max_calls=10, period_seconds=60):
+        self.max_calls = max_calls
+        self.period = timedelta(seconds=period_seconds)
+        self.calls = defaultdict(list)
+    
+    def acquire(self, key="default"):
+        """Check if rate limit would be exceeded. Returns True if allowed."""
+        now = datetime.now()
+        
+        # Remove old calls outside the window
+        self.calls[key] = [
+            call_time for call_time in self.calls[key]
+            if now - call_time < self.period
+        ]
+        
+        # Check if we're at the limit
+        if len(self.calls[key]) >= self.max_calls:
+            return False
+        
+        # Record this call
+        self.calls[key].append(now)
+        return True
+    
+    def get_wait_time(self, key="default"):
+        """Get seconds to wait before next call is allowed."""
+        now = datetime.now()
+        if key not in self.calls or len(self.calls[key]) < self.max_calls:
+            return 0
+        
+        oldest_call = min(self.calls[key])
+        wait_time = (oldest_call + self.period - now).total_seconds()
+        return max(0, wait_time)
+
+# Initialize rate limiter (disabled by default, can be enabled via env var)
+rate_limiter = RateLimiter(
+    max_calls=int(os.getenv('CATO_MCP_RATE_LIMIT_CALLS', '999')),
+    period_seconds=int(os.getenv('CATO_MCP_RATE_LIMIT_PERIOD', '60'))
+)
+
+def validate_query_params(operation, args):
+    """Validate and suggest optimizations for query parameters."""
+    hints = QUERY_OPTIMIZATION_HINTS.get(operation, {})
+    warnings = []
+    
+    # Try to parse JSON args
+    json_arg = None
+    for arg in args:
+        if arg.strip().startswith('{'):
+            try:
+                json_arg = json.loads(arg)
+                break
+            except json.JSONDecodeError:
+                pass
+    
+    if not json_arg:
+        return warnings
+    
+    # Check bucket count for time series operations
+    if operation.endswith('TimeSeries'):
+        buckets = json_arg.get('buckets', 0)
+        max_buckets = hints.get('max_buckets', 999)
+        recommended_buckets = hints.get('recommended_buckets', 24)
+        
+        if buckets > max_buckets:
+            warnings.append(
+                f"High bucket count ({buckets}). Consider using {recommended_buckets} "
+                f"or split into multiple queries to avoid timeouts."
+            )
+    
+    # Check for required filters
+    if hints.get('requires_site_filter') and operation == 'accountMetrics':
+        if 'siteIDs' not in json_arg or not json_arg.get('siteIDs'):
+            warnings.append(
+                f"{operation} requires siteIDs filter for optimal performance. "
+                "Use list_sites() to get site IDs."
+            )
+    
+    if hints.get('requires_filter') and operation == 'eventsTimeSeries':
+        if 'eventsFilter' not in json_arg or not json_arg.get('eventsFilter'):
+            warnings.append(
+                f"{operation} should include eventsFilter for better performance. "
+                "Consider filtering by site_id or event type."
+            )
+    
+    return warnings
+
+def limit_response_size(data: str, max_records: int = MAX_RESPONSE_RECORDS, max_size_mb: float = MAX_RESPONSE_SIZE_MB) -> str:
+    """Limit response size to prevent overwhelming the client.
+    
+    Args:
+        data: The response data as a string (typically JSON)
+        max_records: Maximum number of records to return
+        max_size_mb: Maximum response size in MB
+    
+    Returns:
+        Limited response data or error message if too large
+    """
+    # Check size
+    size_mb = sys.getsizeof(data) / (1024 * 1024)
+    
+    if size_mb > max_size_mb:
+        return json.dumps({
+            "error": "Response too large",
+            "size_mb": round(size_mb, 2),
+            "max_size_mb": max_size_mb,
+            "suggestion": "Use more specific filters to reduce data volume (e.g., filter by site_id, limit timeFrame, or break into multiple smaller queries)",
+            "help": "You can adjust limits via CATO_MCP_MAX_SIZE_MB environment variable"
+        }, indent=2)
+    
+    # Try to parse as JSON and limit records if applicable
+    try:
+        parsed = json.loads(data)
+        
+        # Handle different response structures
+        records_field = None
+        if isinstance(parsed, dict):
+            # Check common record field names
+            for field in ['records', 'items', 'data', 'results']:
+                if field in parsed and isinstance(parsed[field], list):
+                    records_field = field
+                    break
+        
+        if records_field and len(parsed[records_field]) > max_records:
+            original_count = len(parsed[records_field])
+            parsed[records_field] = parsed[records_field][:max_records]
+            parsed['_mcp_truncated'] = True
+            parsed['_mcp_original_count'] = original_count
+            parsed['_mcp_returned_count'] = max_records
+            parsed['_mcp_suggestion'] = f"Response truncated to {max_records} records. Use more specific filters or break into smaller queries. Adjust via CATO_MCP_MAX_RECORDS environment variable."
+            return json.dumps(parsed, indent=2)
+    except (json.JSONDecodeError, TypeError):
+        # Not JSON or can't parse, return as-is
+        pass
+    
+    return data
+
+def run_cato_command(args: list[str], timeout: int = QUERY_TIMEOUT_SECONDS) -> str:
+    """Helper to run catocli commands with timeout support.
+    
+    Args:
+        args: Command arguments to pass to catocli
+        timeout: Timeout in seconds (default from CATO_MCP_TIMEOUT_SECONDS env var)
+    
+    Returns:
+        Command output or error message
+    """
     command = ["python3", "-m", "catocli"] + args
     try:
         result = subprocess.run(
             command,
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=timeout
         )
-        return result.stdout
+        return limit_response_size(result.stdout)
+    except subprocess.TimeoutExpired:
+        return json.dumps({
+            "error": f"Query timeout after {timeout}s",
+            "suggestion": "Try reducing timeFrame, limiting buckets, or filtering by specific sites",
+            "help": "Adjust timeout via CATO_MCP_TIMEOUT_SECONDS environment variable"
+        }, indent=2)
     except subprocess.CalledProcessError as e:
         return f"Error executing command: {e.stderr}"
     except FileNotFoundError:
@@ -454,10 +694,65 @@ def cato_query(operation: str, args: list[str] = [], site_id: str = None, site_n
             "Then call cato_query again with site_id/site_name or user_id parameters.\n\n"
             "Example: cato_query(\"appStats\", ['{\"timeFrame\": \"last.P1D\", \"dimension\": [{\"fieldName\": \"application_name\"}], \"measure\": [{\"aggType\": \"sum\", \"fieldName\": \"traffic\"}], \"perSecond\": false, \"appStatsFilter\": []}'], site_id='12345')"
         )
-
+    
+    # Validate query parameters and provide optimization warnings
+    warnings = validate_query_params(operation, args)
+    
+    # Check rate limit
+    if not rate_limiter.acquire(key=f"cato_query_{operation}"):
+        wait_time = rate_limiter.get_wait_time(key=f"cato_query_{operation}")
+        return json.dumps({
+            "error": "Rate limit exceeded",
+            "wait_seconds": round(wait_time, 1),
+            "suggestion": f"Please wait {round(wait_time, 1)}s before retrying",
+            "help": "Adjust rate limits via CATO_MCP_RATE_LIMIT_CALLS and CATO_MCP_RATE_LIMIT_PERIOD environment variables"
+        }, indent=2)
+    
     # Automatically inject filters if site_id, site_name, or user_id are provided
     filtered_args = _inject_filters(operation, args, site_id, site_name, user_id)
-    return run_cato_command(["query", operation] + filtered_args)
+    
+    # Check cache first (only for read-only query operations)
+    cache_key_params = {'operation': operation, 'args': filtered_args, 'site_id': site_id, 'site_name': site_name, 'user_id': user_id}
+    cached_result = query_cache.get(operation, cache_key_params)
+    if cached_result:
+        # Parse and add cache indicator
+        try:
+            result_data = json.loads(cached_result)
+            if isinstance(result_data, dict):
+                result_data['_mcp_cached'] = True
+                result_data['_mcp_cache_ttl_seconds'] = CACHE_TTL_SECONDS
+                if warnings:
+                    result_data['_mcp_warnings'] = warnings
+                return json.dumps(result_data, indent=2)
+        except json.JSONDecodeError:
+            pass
+        # Return cached non-JSON result
+        return cached_result
+    
+    # Execute query
+    result = run_cato_command(["query", operation] + filtered_args)
+    
+    # Add warnings if any
+    if warnings:
+        try:
+            result_data = json.loads(result)
+            if isinstance(result_data, dict):
+                result_data['_mcp_warnings'] = warnings
+                result = json.dumps(result_data, indent=2)
+        except json.JSONDecodeError:
+            pass
+    
+    # Cache successful results (not errors)
+    try:
+        result_data = json.loads(result)
+        if not result_data.get('error'):
+            query_cache.set(operation, cache_key_params, result)
+    except json.JSONDecodeError:
+        # Cache non-JSON results too
+        if not result.startswith('Error'):
+            query_cache.set(operation, cache_key_params, result)
+    
+    return result
 
 @mcp.tool()
 def cato_mutation(operation: str, args: list[str] = []) -> str:
@@ -687,13 +982,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--account-id", help="Cato Account ID")
     parser.add_argument("--cato-token", help="Cato API Token")
-    parser.add_argument("--endpoint", help="Cato API Endpoint")
+    parser.add_argument("--api-host", help="Cato API hostname (e.g., api.catonetworks.com)")
     args, unknown = parser.parse_known_args()
 
     # Priority: command line args > environment variables
     account_id = args.account_id or os.getenv('CATO_ACCOUNT_ID')
     cato_token = args.cato_token or os.getenv('CATO_API_KEY')
-    endpoint = args.endpoint or os.getenv('CATO_API_HOST')
+    api_host = args.api_host or os.getenv('CATO_API_HOST')
+    
+    # Construct full endpoint URL from hostname
+    endpoint = None
+    if api_host:
+        # Strip any protocol and path if accidentally included
+        api_host = api_host.replace('https://', '').replace('http://', '')
+        api_host = api_host.split('/')[0]  # Take only hostname part
+        # Construct full API URL
+        endpoint = f"https://{api_host}/api/v1/graphql2"
 
     if account_id and cato_token:
         print(f"Configuring catocli for account {account_id}...", file=sys.stderr)
