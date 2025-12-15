@@ -2,50 +2,128 @@
 
 An MCP (Model Context Protocol) server that provides tools for interacting with Cato Networks API through the catocli command-line interface.
 
-## Quick Start with Docker
+## Prerequisites
 
-### Using Docker Run
+Before using this MCP server, you need to have Docker installed on your system.
 
-Run the MCP server directly with Docker:
+<details>
+<summary><b>Install Docker Desktop</b> (click to expand)</summary>
 
-```bash
-docker run --rm -i \
-  -e CATO_API_HOST=api.catonetworks.com \
-  -e CATO_ACCOUNT_ID=your_account_id \
-  -e CATO_API_KEY=your_api_key \
-  catonetworks/cato-cli-mcp:latest
+### macOS
+
+1. Download Docker Desktop for Mac from the [official Docker website](https://www.docker.com/products/docker-desktop/)
+   - For Apple Silicon (M1/M2/M3): Download the **Apple Chip** version
+   - For Intel processors: Download the **Intel Chip** version
+
+2. Open the downloaded `.dmg` file and drag Docker to your Applications folder
+
+3. Launch Docker Desktop from Applications
+
+4. Follow the on-screen instructions to complete the installation
+
+5. Verify Docker is installed:
+   ```bash
+   docker --version
+   docker compose version
+   ```
+
+### Windows
+
+1. **System Requirements:**
+   - Windows 10 64-bit: Pro, Enterprise, or Education (Build 19041 or higher)
+   - Windows 11 64-bit: Pro, Enterprise, or Education
+   - WSL 2 feature enabled
+
+2. **Enable WSL 2:**
+   ```powershell
+   wsl --install
+   ```
+   Restart your computer if prompted.
+
+3. **Download and Install Docker Desktop:**
+   - Download Docker Desktop for Windows from the [official Docker website](https://www.docker.com/products/docker-desktop/)
+   - Run the installer and follow the installation wizard
+   - Ensure "Use WSL 2 instead of Hyper-V" option is selected
+
+4. **Launch Docker Desktop** and complete the initial setup
+
+5. **Verify Docker is installed:**
+   ```powershell
+   docker --version
+   docker compose version
+   ```
+
+For detailed installation instructions, see the [official Docker documentation](https://docs.docker.com/get-docker/).
+
+</details>
+
+## Add the following to Claude-Desktop config file:
+
+## Claude Desktop Configuration
+
+Add the following to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "cato": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "CATO_API_HOST=api.catonetworks.com",
+        "-e",
+        "CATO_ACCOUNT_ID=12345",
+        "-e",
+        "CATO_API_KEY=XXXXXXXXXXX",
+        "catonetworks/cato-cli-mcp:latest"
+      ],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+
 ```
 
-### Using Docker Compose
+### Windows Configuration
+File location: `%APPDATA%\Claude\claude_desktop_config.json`
 
-1. Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
+```json
+{
+  "mcpServers": {
+    "cato": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "CATO_API_HOST=api.catonetworks.com",
+        "-e",
+        "CATO_ACCOUNT_ID=12345",
+        "-e",
+        "CATO_API_KEY=XXXXXXXXXXX",
+        "catonetworks/cato-cli-mcp:latest"
+      ],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
 
-2. Edit `.env` and fill in your Cato credentials:
-   ```properties
-   CATO_API_HOST=api.catonetworks.com
-   CATO_ACCOUNT_ID=your_account_id
-   CATO_API_KEY=your_api_key
-   ```
+**Note:** On Windows, you can access the config file by:
+1. Press `Win + R`
+2. Type `%APPDATA%\Claude` and press Enter
+3. Edit `claude_desktop_config.json` with your preferred text editor
 
-3. Start the server:
-   ```bash
-   docker-compose up -d
-   ```
 
-4. View logs:
-   ```bash
-   docker-compose logs -f
-   ```
-
-5. Stop the server:
-   ```bash
-   docker-compose down
-   ```
-
-## Configuration
+<details>
+<summary><b>Configuration Options</b> (click to expand)</summary>
 
 The server requires the following environment variables:
 
@@ -66,7 +144,7 @@ The server requires the following environment variables:
 
 For details about your Cato API hostname, see: [What is the Cato API](https://support.catonetworks.com/hc/en-us/articles/20564679978397-What-is-the-Cato-API)
 
-### Performance Features
+## Performance Features
 
 The server includes several performance optimizations to prevent overwhelming AI clients (like Claude) and improve reliability:
 
@@ -119,35 +197,9 @@ When limits are hit, you'll receive helpful suggestions to:
 }
 ```
 
-## Claude Desktop Configuration
+</details>
 
-Add the following to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
-```json
-{
-  "mcpServers": {
-    "cato": {
-      "type": "stdio",
-      "command": "docker",
-      "args": [
-        "run",
-        "--rm",
-        "-i",
-        "-e",
-        "CATO_API_HOST=api.catonetworks.com",
-        "-e",
-        "CATO_ACCOUNT_ID=12345",
-        "-e",
-        "CATO_API_KEY=XXXXXXXXXXX",
-        "catonetworks/cato-cli-mcp:latest"
-      ],
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-
-```
 
 ## Available Tools
 
