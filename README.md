@@ -79,7 +79,7 @@ Add the following to `~/Library/Application Support/Claude/claude_desktop_config
         "CATO_ACCOUNT_ID=12345",
         "-e",
         "CATO_API_KEY=XXXXXXXXXXX",
-        "catonetworks/cato-cli-mcp:latest"
+        "ghcr.io/catonetworks/cato-cli-mcp:latest"
       ],
       "disabled": false,
       "autoApprove": []
@@ -107,7 +107,7 @@ File location: `%APPDATA%\Claude\claude_desktop_config.json`
         "CATO_ACCOUNT_ID=12345",
         "-e",
         "CATO_API_KEY=XXXXXXXXXXX",
-        "catonetworks/cato-cli-mcp:latest"
+        "ghcr.io/catonetworks/cato-cli-mcp:latest"
       ],
       "disabled": false,
       "autoApprove": []
