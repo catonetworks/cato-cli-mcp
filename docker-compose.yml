@@ -1,7 +1,8 @@
-version: '3.8'
-
 services:
   cato-cli-mcp:
+    #  build:
+    #   context: .
+    #   dockerfile: Dockerfile
     image: ghcr.io/catonetworks/cato-cli-mcp:latest
     container_name: cato-cli-mcp
     stdin_open: true

@@ -8,6 +8,7 @@ import hashlib
 from datetime import datetime, timedelta
 from collections import defaultdict
 from functools import wraps
+from pathlib import Path
 
 # Environment variable configuration for response limits
 MAX_RESPONSE_RECORDS = int(os.getenv('CATO_MCP_MAX_RECORDS', '50'))
@@ -263,6 +264,50 @@ def run_cato_command(args: list[str], timeout: int = QUERY_TIMEOUT_SECONDS) -> s
     except FileNotFoundError:
         return "Error: catocli not found. Please ensure it is installed and in the PATH."
 
+def extract_field_name_reference(help_text: str) -> dict:
+    """Extract Field Name Reference section from help text.
+    
+    Args:
+        help_text: The complete help text output
+    
+    Returns:
+        Dictionary with field name information or empty dict if not found
+    """
+    import re
+    
+    result = {}
+    
+    # Look for "## Field Name Reference" section
+    field_ref_match = re.search(
+        r'## Field Name Reference\s*\n+(.*?)(?=\n##|\n####|$)',
+        help_text,
+        re.DOTALL
+    )
+    
+    if not field_ref_match:
+        return result
+    
+    field_section = field_ref_match.group(1)
+    
+    # Extract subsections like "### Valid values for appStatsFilter, dimension and measure"
+    # The pattern needs to match: "Valid values: `field1`, `field2`, `field3`"
+    subsection_pattern = r'### Valid values for ([^\n]+)\s*\nValid values: (.+?)(?=\n###|\n####|$)'
+    
+    for match in re.finditer(subsection_pattern, field_section, re.DOTALL):
+        param_types = match.group(1).strip()
+        valid_values_text = match.group(2).strip()
+        
+        # Extract all backtick-quoted field names
+        fields = re.findall(r'`([^`]+)`', valid_values_text)
+        
+        result[param_types] = {
+            'description': f'Valid values for {param_types}',
+            'fields': fields,
+            'count': len(fields)
+        }
+    
+    return result
+
 @mcp.tool()
 def catocli_help(command: str = "") -> str:
     """
@@ -273,6 +318,7 @@ def catocli_help(command: str = "") -> str:
     - JSON input format and examples
     - Report format options (-f csv, -f json, etc.)
     - Output options (--csv-filename, --append-timestamp, etc.)
+    - Field Name Reference - valid field names for filters, dimensions, and measures
     
     Args:
         command: The command path to get help for. Examples:
@@ -283,13 +329,34 @@ def catocli_help(command: str = "") -> str:
             - "entity site" - Help for site entity operations
     
     Returns:
-        Detailed help text including examples, parameters, and usage patterns.
+        Detailed help text including examples, parameters, field references, and usage patterns.
     """
     if not command:
         return run_cato_command(["-h"])
     
     cmd_parts = command.split()
-    return run_cato_command(cmd_parts + ["-h"])
+    help_output = run_cato_command(cmd_parts + ["-h"])
+    
+    # Try to extract and enhance field name reference if present
+    field_refs = extract_field_name_reference(help_output)
+    if field_refs:
+        # Add a summary at the beginning of the help output
+        summary = "\n" + "="*80 + "\n"
+        summary += "FIELD NAME REFERENCE SUMMARY\n"
+        summary += "="*80 + "\n"
+        for param_type, info in field_refs.items():
+            summary += f"\n{info['description']} ({info['count']} fields):\n"
+            # Group fields in rows of 5 for readability
+            fields = info['fields']
+            for i in range(0, len(fields), 5):
+                row = fields[i:i+5]
+                summary += "  " + ", ".join(row) + "\n"
+        summary += "\n" + "="*80 + "\n\n"
+        
+        # Prepend summary to help output
+        return summary + help_output
+    
+    return help_output
 
 @mcp.tool()
 def cato_entity(subcommand: str, args: list[str] = []) -> str:
