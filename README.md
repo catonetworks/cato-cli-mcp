@@ -75,24 +75,14 @@ Add the following to `~/Library/Application Support/Claude/claude_desktop_config
 {
   "mcpServers": {
     "cato": {
-      "type": "stdio",
       "command": "docker",
       "args": [
-        "run",
-        "--rm",
-        "--pull",
-        "always",
-        "-i",
-        "-e",
-        "CATO_API_HOST=api.catonetworks.com",
-        "-e",
-        "CATO_ACCOUNT_ID=12345",
-        "-e",
-        "CATO_API_KEY=XXXXXXXXXXXXX",
-        "ghcr.io/catonetworks/cato-cli-mcp:latest"
-      ],
-      "disabled": false,
-      "autoApprove": []
+        "run", "--rm", "-i", "--pull", "always",
+        "-e", "CATO_API_HOST=api.catonetworks.com",
+        "-e", "CATO_ACCOUNT_ID=12345",
+        "-e", "CATO_API_KEY=XXXXXXXXX",
+        "ghcr.io/catonetworks/cato-mcp-server:latest"
+      ]
     }
   }
 }
@@ -105,24 +95,14 @@ File location: `%APPDATA%\Claude\claude_desktop_config.json`
 {
   "mcpServers": {
     "cato": {
-      "type": "stdio",
       "command": "docker",
       "args": [
-        "run",
-        "--rm",
-        "--pull",
-        "always",
-        "-i",
-        "-e",
-        "CATO_API_HOST=api.catonetworks.com",
-        "-e",
-        "CATO_ACCOUNT_ID=12345",
-        "-e",
-        "CATO_API_KEY=XXXXXXXXXXXXX",
-        "ghcr.io/catonetworks/cato-cli-mcp:latest"
-      ],
-      "disabled": false,
-      "autoApprove": []
+        "run", "--rm", "-i", "--pull", "always",
+        "-e", "CATO_API_HOST=api.catonetworks.com",
+        "-e", "CATO_ACCOUNT_ID=12345",
+        "-e", "CATO_API_KEY=[REDACTED:api-key]",
+        "ghcr.io/catonetworks/cato-mcp-server:latest"
+      ]
     }
   }
 }
