@@ -57,6 +57,14 @@ For detailed installation instructions, see the [official Docker documentation](
 
 </details>
 
+## Pull the latest MCP container
+
+Open a terminal window and runt the following command 
+
+```bash
+docker pull ghcr.io/catonetworks/cato-cli-mcp:latest
+```
+
 ## Add the following to Claude-Desktop config file:
 
 ## Claude Desktop Configuration
@@ -98,6 +106,7 @@ File location: `%APPDATA%\Claude\claude_desktop_config.json`
 {
   "mcpServers": {
     "cato": {
+      "type": "stdio",
       "command": "docker",
       "args": [
         "run",
