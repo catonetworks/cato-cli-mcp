@@ -80,15 +80,15 @@ Add the following to `~/Library/Application Support/Claude/claude_desktop_config
       "args": [
         "run",
         "--rm",
+        "--pull",
+	      "always",
         "-i",
         "-e",
-        "--pull",
-        "always",
         "CATO_API_HOST=api.catonetworks.com",
         "-e",
         "CATO_ACCOUNT_ID=12345",
         "-e",
-        "CATO_API_KEY=XXXXXXXXXXX",
+        "CATO_API_KEY=XXXXXXXXXXXXX",
         "ghcr.io/catonetworks/cato-cli-mcp:latest"
       ],
       "disabled": false,
@@ -96,7 +96,6 @@ Add the following to `~/Library/Application Support/Claude/claude_desktop_config
     }
   }
 }
-
 ```
 
 ### Windows Configuration
@@ -111,15 +110,15 @@ File location: `%APPDATA%\Claude\claude_desktop_config.json`
       "args": [
         "run",
         "--rm",
+        "--pull",
+	      "always",
         "-i",
         "-e",
-        "--pull",
-        "always",
         "CATO_API_HOST=api.catonetworks.com",
         "-e",
         "CATO_ACCOUNT_ID=12345",
         "-e",
-        "CATO_API_KEY=XXXXXXXXXXX",
+        "CATO_API_KEY=XXXXXXXXXXXXX",
         "ghcr.io/catonetworks/cato-cli-mcp:latest"
       ],
       "disabled": false,
