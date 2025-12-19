@@ -81,7 +81,7 @@ Add the following to `~/Library/Application Support/Claude/claude_desktop_config
         "-e", "CATO_API_HOST=api.catonetworks.com",
         "-e", "CATO_ACCOUNT_ID=12345",
         "-e", "CATO_API_KEY=XXXXXXXXX",
-        "ghcr.io/catonetworks/cato-mcp-server:latest"
+        "ghcr.io/catonetworks/cato-cli-mcp:latest"
       ]
     }
   }
@@ -101,7 +101,7 @@ File location: `%APPDATA%\Claude\claude_desktop_config.json`
         "-e", "CATO_API_HOST=api.catonetworks.com",
         "-e", "CATO_ACCOUNT_ID=12345",
         "-e", "CATO_API_KEY=[REDACTED:api-key]",
-        "ghcr.io/catonetworks/cato-mcp-server:latest"
+        "ghcr.io/catonetworks/cato-cli-mcp:latest"
       ]
     }
   }
