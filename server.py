@@ -1019,11 +1019,17 @@ if __name__ == "__main__":
     import sys
     import os
 
-    print("Starting Cato MCP Server...", file=sys.stderr)
-    print(f"Arguments: {sys.argv}", file=sys.stderr)
+    # Silent startup mode (no stderr output) for MCP protocol compatibility
+    # Can be disabled with CATO_MCP_VERBOSE=1 environment variable
+    VERBOSE = os.getenv('CATO_MCP_VERBOSE', '0') == '1'
+    
+    if VERBOSE:
+        print("Starting Cato MCP Server...", file=sys.stderr)
+        print(f"Arguments: {sys.argv}", file=sys.stderr)
 
     # Ensure catocli is installed
-    print("Ensuring catocli is installed...", file=sys.stderr)
+    if VERBOSE:
+        print("Ensuring catocli is installed...", file=sys.stderr)
     try:
         # Try using uv first as it's likely the environment manager
         subprocess.run(
@@ -1031,7 +1037,8 @@ if __name__ == "__main__":
             check=True,
             capture_output=True
         )
-        print("Successfully installed/verified catocli using uv", file=sys.stderr)
+        if VERBOSE:
+            print("Successfully installed/verified catocli using uv", file=sys.stderr)
     except (subprocess.CalledProcessError, FileNotFoundError):
         # Fallback to pip if uv fails or isn't found
         try:
@@ -1040,10 +1047,12 @@ if __name__ == "__main__":
                 check=True,
                 capture_output=True
             )
-            print("Successfully installed/verified catocli using pip", file=sys.stderr)
+            if VERBOSE:
+                print("Successfully installed/verified catocli using pip", file=sys.stderr)
         except subprocess.CalledProcessError as e:
-            print(f"Failed to install catocli: {e}", file=sys.stderr)
-            print(f"Stderr: {e.stderr.decode() if e.stderr else 'None'}", file=sys.stderr)
+            if VERBOSE:
+                print(f"Failed to install catocli: {e}", file=sys.stderr)
+                print(f"Stderr: {e.stderr.decode() if e.stderr else 'None'}", file=sys.stderr)
             # We continue, hoping it's already there or the error was transient
 
     parser = argparse.ArgumentParser()
@@ -1067,7 +1076,8 @@ if __name__ == "__main__":
         endpoint = f"https://{api_host}/api/v1/graphql2"
 
     if account_id and cato_token:
-        print(f"Configuring catocli for account {account_id}...", file=sys.stderr)
+        if VERBOSE:
+            print(f"Configuring catocli for account {account_id}...", file=sys.stderr)
         try:
             config_cmd = ["python3", "-m", "catocli", "configure", "set", "--cato-token", cato_token, "--account-id", account_id, "--skip-validation"]
             if endpoint:
@@ -1079,19 +1089,23 @@ if __name__ == "__main__":
                 capture_output=True,
                 text=True
             )
-            print(f"Successfully configured catocli for account {account_id}", file=sys.stderr)
-            if result.stdout:
-                print(f"Config output: {result.stdout}", file=sys.stderr)
+            if VERBOSE:
+                print(f"Successfully configured catocli for account {account_id}", file=sys.stderr)
+                if result.stdout:
+                    print(f"Config output: {result.stdout}", file=sys.stderr)
         except subprocess.CalledProcessError as e:
-            print(f"Failed to configure catocli: {e}", file=sys.stderr)
-            print(f"Stdout: {e.stdout.decode() if e.stdout else 'None'}", file=sys.stderr)
-            print(f"Stderr: {e.stderr.decode() if e.stderr else 'None'}", file=sys.stderr)
+            if VERBOSE:
+                print(f"Failed to configure catocli: {e}", file=sys.stderr)
+                print(f"Stdout: {e.stdout.decode() if e.stdout else 'None'}", file=sys.stderr)
+                print(f"Stderr: {e.stderr.decode() if e.stderr else 'None'}", file=sys.stderr)
             #sys.exit(1)
     else:
-        print("No configuration arguments provided. Assuming catocli is already configured.", file=sys.stderr)
+        if VERBOSE:
+            print("No configuration arguments provided. Assuming catocli is already configured.", file=sys.stderr)
 
     # Remove parsed arguments from sys.argv so FastMCP doesn't see them
     sys.argv = [sys.argv[0]] + unknown
     
-    print("Starting FastMCP server...", file=sys.stderr)
+    if VERBOSE:
+        print("Starting FastMCP server...", file=sys.stderr)
     mcp.run()

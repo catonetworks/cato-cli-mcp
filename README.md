@@ -57,14 +57,6 @@ For detailed installation instructions, see the [official Docker documentation](
 
 </details>
 
-## Pull the latest MCP container
-
-Open a terminal window and runt the following command 
-
-```bash
-docker pull ghcr.io/catonetworks/cato-cli-mcp:latest
-```
-
 ## Add the following to Claude-Desktop config file:
 
 ## Claude Desktop Configuration
@@ -75,6 +67,7 @@ Add the following to `~/Library/Application Support/Claude/claude_desktop_config
 {
   "mcpServers": {
     "cato": {
+      "type": "stdio",
       "command": "docker",
       "args": [
         "run", "--rm", "-i", "--pull", "always",
@@ -95,12 +88,13 @@ File location: `%APPDATA%\Claude\claude_desktop_config.json`
 {
   "mcpServers": {
     "cato": {
+      "type": "stdio",
       "command": "docker",
       "args": [
         "run", "--rm", "-i", "--pull", "always",
         "-e", "CATO_API_HOST=api.catonetworks.com",
         "-e", "CATO_ACCOUNT_ID=12345",
-        "-e", "CATO_API_KEY=[REDACTED:api-key]",
+        "-e", "CATO_API_KEY=XXXXXXXXX",
         "ghcr.io/catonetworks/cato-cli-mcp:latest"
       ]
     }
@@ -113,6 +107,27 @@ File location: `%APPDATA%\Claude\claude_desktop_config.json`
 2. Type `%APPDATA%\Claude` and press Enter
 3. Edit `claude_desktop_config.json` with your preferred text editor
 
+
+### Notes:
+- The `--pull always` option ensures that the AI Agent application (e.g. Claude-Desktop) uses cato-mcp-server's most updated version.\
+The AI Agent application running cato-mcp-server might open a popup asking for permissions to access data from other apps.\
+<img width="262" height="250" alt="image" src="https://github.com/user-attachments/assets/584ce9d3-8bcf-4109-9dcc-3b7ca948e6e4" />\
+  - If you don't wish to allow this, you can remove the `--pull always` option, but then you will need to manually update the image when a new version is released by executing:
+  ```bash
+  docker pull ghcr.io/catonetworks/cato-mcp-server:latest
+  ```
+
+## Configuration
+The server requires the following environment variables:
+```properties
+# The hostname of the Cato API (without protocol). e.g.: api.catonetworks.com
+# For details about your Cato API hostname, please see: https://support.catonetworks.com/hc/en-us/articles/20564679978397-What-is-the-Cato-API
+CATO_API_HOST: "api.catonetworks.com"
+# The Cato account-id
+CATO_ACCOUNT_ID: "1234567"
+# The Cato API-KEY for authentication
+CATO_API_KEY: "123abc"
+```
 
 <details>
 <summary><b>Configuration Options</b> (click to expand)</summary>
@@ -131,6 +146,8 @@ The server requires the following environment variables:
 | `CATO_MCP_CACHE_TTL` | Cache TTL in seconds (0 to disable) | `600` | `300` |
 | `CATO_MCP_RATE_LIMIT_CALLS` | Max API calls per period | `20` | `999` (disabled) |
 | `CATO_MCP_RATE_LIMIT_PERIOD` | Rate limit period in seconds | `60` | `60` |
+|| **Debugging** |
+|| `CATO_MCP_VERBOSE` | Enable verbose startup logging to stderr (for debugging) | `1` | `0` (silent) |
 
 **Note:** `CATO_API_HOST` should contain **only the hostname** (e.g., `api.catonetworks.com`). The server will automatically construct the full URL `https://api.catonetworks.com/api/v1/graphql2` when configuring catocli.
 
