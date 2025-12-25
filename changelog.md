@@ -14,3 +14,8 @@
 
 ### Features
 - Modified startup output not to interfere with jsonrpc for Claude client
+
+## 0.0.5 (2025-12-25)
+
+### Features
+- Updated server file to include mappings if valid and invalid dimenstions and fields for several operations, as well as included possible valid fields for action for eventsTimeSeries. 

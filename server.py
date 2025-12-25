@@ -20,36 +20,185 @@ QUERY_TIMEOUT_SECONDS = int(os.getenv('CATO_MCP_TIMEOUT_SECONDS', '120'))
 # Cache configuration
 CACHE_TTL_SECONDS = int(os.getenv('CATO_MCP_CACHE_TTL', '300'))  # 5 minutes default
 
+# Event type to event subtype mapping for eventsFeed and eventsTimeSeries
+EVENT_TYPE_SUBTYPE_MAPPING = {
+    'Connectivity': [
+        'Always-On Bypass',
+        'ApiKey',
+        'Cato Management Application',
+        'Changed Pop',
+        'Client Connectivity Policy',
+        'Connected',
+        'DHCP Lease',
+        'Disconnected',
+        'Fail-Over',
+        'IP Conflict',
+        'LAN Monitoring',
+        'Last-Mile Quality',
+        'Link-Aggregation',
+        'Off-Cloud Recovery',
+        'Off-Cloud Transport Connect',
+        'Off-Cloud Transport Disconnect',
+        'Passive Connected',
+        'Passive Disconnected',
+        'Reconnected',
+        'Recovery via Alt. WAN',
+        'Registration Code',
+        'SDP Portal',
+        'Socket Fail-Over'
+    ],
+    'Detection and Response': [
+        'XDR Anomaly',
+        'XDR Endpoint',
+        'XDR Network',
+        'XDR Threat'
+    ],
+    'Routing': [
+        'BFD Session',
+        'BGP Events Discarded',
+        'BGP Routing',
+        'BGP Session'
+    ],
+    'Security': [
+        'Anti Malware',
+        'Application Sign-in',
+        'Apps Security',
+        'Apps Security API',
+        'DNS Protection',
+        'Endpoint Alert',
+        'Endpoint Protection',
+        'IPS',
+        'Identity Alert',
+        'Internet Firewall',
+        'LAN Firewall',
+        'MAC Address Authentication',
+        'MDR',
+        'Misclassification',
+        'NG Anti Malware',
+        'RPF',
+        'SDP Activity',
+        'SaaS Security API Anti Malware',
+        'SaaS Security API Data Protection',
+        'Suspicious Activity',
+        'TLS',
+        'WAN Firewall'
+    ],
+    'Sockets Management': [
+        'Socket Password Reset',
+        'Socket Upgrade',
+        'Socket WebUI Access'
+    ],
+    'System': [
+        'Apps Security API Notification',
+        'DC Connectivity Failure',
+        'Directory Services',
+        'ILMM Link Update',
+        'LDAP Provisioning',
+        'Multiple Users Detected',
+        'New External Access Request Created',
+        'QUOTA LIMIT',
+        'SCIM Provisioning',
+        'Sdp license',
+        'User'
+    ]
+}
+
+# Valid values for eventsFilter fields in eventsTimeSeries
+# Maps filter field names to their possible valid values
+EVENTS_FILTER_VALID_VALUES = {
+    'action': [
+        'Access denied',
+        'Alert',
+        'Allow',
+        'Block',
+        'Clear Alert',
+        'Failed',
+        'Monitor',
+        'Prompt',
+        'RBI',
+        'SDP application activity',
+        'SDP portal activity',
+        'Succeeded',
+        'Successful login'
+    ],
+    # Add other filter field names and their valid values here as they are discovered
+    # Examples:
+    # 'event_type': list(EVENT_TYPE_SUBTYPE_MAPPING.keys()),
+    # 'severity': ['Low', 'Medium', 'High', 'Critical'],
+    # 'status': ['Active', 'Resolved', 'Acknowledged'],
+}
+
 # Query optimization hints
 QUERY_OPTIMIZATION_HINTS = {
     'appStats': {
         'recommended_timeframe': 'last.PT6H',
         'recommended_measures': ['traffic', 'upstream', 'downstream'],
         'max_dimensions': 2,
-        'warning_threshold': 10000
+        'warning_threshold': 10000,
+        'invalid_dimension_combinations': [
+            # Add known invalid combinations here as they are discovered
+        ],
+        'invalid_standalone_dimensions': [
+            # Add known invalid standalone dimensions here as they are discovered
+        ]
     },
     'appStatsTimeSeries': {
         'recommended_buckets': 24,
         'max_buckets': 168,
-        'recommended_timeframe': 'last.P1D'
+        'recommended_timeframe': 'last.P1D',
+        'invalid_dimension_combinations': [
+            ['domain','application_name','application_id']
+        ],
+        'invalid_standalone_dimensions': [
+            # Add known invalid standalone dimensions here as they are discovered
+        ]
     },
     'socketPortMetrics': {
         'recommended_timeframe': 'last.P1D',
-        'max_dimensions': 2
+        'max_dimensions': 2,
+        'invalid_dimension_combinations': [
+            # Add known invalid combinations here as they are discovered
+        ],
+        'invalid_standalone_dimensions': [
+            # Add known invalid standalone dimensions here as they are discovered
+        ]
     },
     'socketPortMetricsTimeSeries': {
         'recommended_buckets': 24,
-        'max_buckets': 168
+        'max_buckets': 168,
+        'invalid_dimension_combinations': [
+            [ "socket_interface", "ha_role", "sim_num", "account_id", "bytes_downstream", "bytes_upstream" ]
+        ],
+        'invalid_standalone_dimensions': [
+            # Add known invalid standalone dimensions here as they are discovered
+        ]
     },
     'accountMetrics': {
         'recommended_timeframe': 'last.P1D',
         'recommended_buckets': 24,
-        'requires_site_filter': True
+        'requires_site_filter': True,
+        'invalid_dimension_combinations': [
+            # Add known invalid combinations here as they are discovered
+        ],
+        'invalid_standalone_dimensions': [
+            # Add known invalid standalone dimensions here as they are discovered
+        ]
     },
     'eventsTimeSeries': {
         'recommended_buckets': 24,
         'max_buckets': 168,
-        'requires_filter': True
+        'requires_filter': True,
+        'invalid_dimension_combinations': [
+            # These dimension combinations will cause internal server errors
+            ['rule_name', 'event_sub_type'],
+            ['user_name', 'user_id'],
+            ['application_id', 'domain'],
+            ['application_name', 'domain']
+        ],
+        'invalid_standalone_dimensions': [
+            # These dimensions cannot be used alone and will cause internal server errors
+            'domain_name'
+        ]
     }
 }
 
@@ -180,6 +329,49 @@ def validate_query_params(operation, args):
                 f"{operation} should include eventsFilter for better performance. "
                 "Consider filtering by site_id or event type."
             )
+    
+    # Validate dimension combinations for operations that support dimensions
+    # Map operation names to their dimension parameter names
+    dimension_param_map = {
+        'eventsTimeSeries': 'eventsDimension',
+        'appStats': 'dimension',
+        'appStatsTimeSeries': 'dimension',
+        'socketPortMetrics': 'dimension',
+        'socketPortMetricsTimeSeries': 'dimension',
+        'accountMetrics': 'dimension'
+    }
+    
+    if operation in dimension_param_map:
+        dimension_param_name = dimension_param_map[operation]
+        dimensions_param = json_arg.get(dimension_param_name, [])
+        
+        if isinstance(dimensions_param, list):
+            # Extract dimension field names
+            dimension_names = []
+            for dim in dimensions_param:
+                if isinstance(dim, dict) and 'fieldName' in dim:
+                    dimension_names.append(dim['fieldName'])
+                elif isinstance(dim, str):
+                    dimension_names.append(dim)
+            
+            # Check for invalid dimension combinations
+            invalid_combinations = hints.get('invalid_dimension_combinations', [])
+            for invalid_combo in invalid_combinations:
+                if all(dim in dimension_names for dim in invalid_combo):
+                    warnings.append(
+                        f"ERROR: Invalid dimension combination detected in {operation}: {', '.join(invalid_combo)}. "
+                        f"These dimensions cause internal server errors when used together. "
+                        f"Use them in separate queries instead."
+                    )
+            
+            # Check for invalid standalone dimensions
+            invalid_standalone = hints.get('invalid_standalone_dimensions', [])
+            for invalid_dim in invalid_standalone:
+                if invalid_dim in dimension_names and len(dimension_names) == 1:
+                    warnings.append(
+                        f"ERROR: Dimension '{invalid_dim}' cannot be used alone in {operation} and will cause an internal server error. "
+                        f"Combine it with other dimensions in your query."
+                    )
     
     return warnings
 
@@ -653,15 +845,18 @@ def cato_query(operation: str, args: list[str] = [], site_id: str = None, site_n
             - entityLookup: Search for any entity (sites, users, hosts, etc.)
         
         SECURITY & EVENTS:
-            ** WHEN TO USE eventsTimeSeries **:
-            For Security Events, Connectivity Events, Threat Analysis, Operational Events,
-            Forensic Analysis, and Trend Detection - ALWAYS use eventsTimeSeries
+            ** WHEN TO USE eventsTimeSeries vs eventsFeed **:
+            For ANY questions about security events, connectivity issues, threat analysis,
+            operational events, forensics, or trend detection - ALWAYS use eventsTimeSeries.
+            NEVER use eventsFeed for event analysis or questions about events.
             
             - eventsTimeSeries: Security and network events over time with time buckets
               * Use when: Asked about security events, threats, firewall blocks, connectivity,
                 system status, configuration changes, or any event analysis
-              * Use for: Threat detection, risk assessment, forensic investigation, pattern identification
-              * Example queries: "security events last 14 days", "firewall blocks today", "threat trends"
+              * Use for: Threat detection, risk assessment, forensic investigation, pattern identification,
+                event counts, event types, event trends, ANY questions about events
+              * Example queries: "security events last 14 days", "firewall blocks today", "threat trends",
+                "how many events occurred", "what types of events happened"
               * Bucket usage:
                 - For SINGLE time period (e.g., "last 14 days total"): Use 1 bucket
                   Example: '{"buckets": 1, "timeFrame": "last.P14D"}'
@@ -675,8 +870,15 @@ def cato_query(operation: str, args: list[str] = [], site_id: str = None, site_n
                 - Filter by site_id, site_name, event type, severity, etc.
                 - Example: '{"eventsFilter": [{"fieldName": "site_id", "operator": "in", "values": ["123"]}]}'
             
+            - eventsFeed: Real-time event streaming ONLY - NOT for event analysis
+              * CRITICAL: DO NOT use eventsFeed for questions about events, event analysis, or metrics
+              * Use ONLY for: Pulling the latest real-time events for a specific marker/position
+              * Requires: A marker (position) from a previous eventsFeed call to get the next batch
+              * Purpose: Continuous event streaming and incremental feed updates
+              * eventsFeed is NOT a query tool - it's a streaming feed for real-time monitoring
+              * For ANY event questions, metrics, or analysis: Use eventsTimeSeries instead
+            
             - events: Legacy events query (prefer eventsTimeSeries instead)
-            - eventsFeed: Enhanced event feed with advanced filtering
             - auditFeed: Audit log entries for configuration changes
         
         ADMINISTRATION:
