@@ -737,7 +737,9 @@ def cato_query(operation: str, args: list[str] = [], site_id: str = None, site_n
     - TimeFrame examples (last.P1D, last.PT1H, utc.YYYY-MM-{DD/HH:MM:SS--DD/HH:MM:SS})
     
     Args:
-        operation: The query operation name. Key operations by category (see below)
+        operation: The query operation name or sub-operation path (space-separated).
+                   Examples: "appStats", "eventsTimeSeries", "xdr stories", "xdr story"
+                   Sub-operations are automatically split and passed as separate arguments.
         args: Arguments in JSON format plus options (e.g., ['{"timeFrame": "last.P1D"}', '-f', 'json'])
         site_id: (Optional but RECOMMENDED) Site ID to automatically filter by - get from list_sites()
         site_name: (Optional) Site name to filter by - alternative to site_id
@@ -851,21 +853,21 @@ def cato_query(operation: str, args: list[str] = [], site_id: str = None, site_n
             NEVER use eventsFeed for event analysis or questions about events.
             
             XDR (Extended Detection and Response):
-            - xdr stories: Query XDR security stories (threat detections, incidents, investigations)
+            - "xdr stories": Query XDR security stories (threat detections, incidents, investigations)
+              * ALWAYS USE cato_query("xdr stories", [...]) - NOT cato_raw()
               * Use when: Asked about security incidents, threat detections, XDR alerts, or investigations
               * Example queries: "show me XDR stories", "security incidents last month", "threat detections"
-              * REQUIRED: storyInput with filter and paging parameters
+              * REQUIRED: storyInput with filter (containing timeFrame) and paging parameters
               * Filter options: timeFrame (required), status, severity, producer, analystVerdict, etc.
-              * Paging: Use "from" and "limit" for pagination (limit max 100 per request)
-              * Example:
-                cato_query("xdr stories", [
-                    '{"storyInput": {"filter": [{"timeFrame": {"time": "last.P1M"}}], "paging": {"from": 0, "limit": 100}}}'
-                ])
+              * Paging: Use "from" (starting index) and "limit" (max 100 per request)
+              * CORRECT USAGE:
+                cato_query("xdr stories", ['{"storyInput": {"filter": [{"timeFrame": {"time": "last.P1M"}}], "paging": {"from": 0, "limit": 100}}}'])
             
-            - xdr story: Get details for a specific XDR story by ID
+            - "xdr story": Get details for a specific XDR story by ID
+              * ALWAYS USE cato_query("xdr story", [...]) - NOT cato_raw()
               * Use when: Need detailed information about a specific security incident
               * REQUIRED: storyId parameter
-              * Example: cato_query("xdr story", ['{"storyId": "abc123"}'])
+              * CORRECT USAGE: cato_query("xdr story", ['{"storyId": "abc123"}'])
             
             - eventsTimeSeries: Security and network events over time with time buckets
               * Use when: Asked about security events, threats, firewall blocks, connectivity,
@@ -942,6 +944,15 @@ def cato_query(operation: str, args: list[str] = [], site_id: str = None, site_n
             '{"siteIDs": ["12345"], "timeFrame": "last.P1D"}',
             '-p'
         ])
+        
+        # XDR Stories - Query security incidents/threat detections (last month, up to 100)
+        # ALWAYS use cato_query for XDR - NOT cato_raw()
+        cato_query("xdr stories", [
+            '{"storyInput": {"filter": [{"timeFrame": {"time": "last.P1M"}}], "paging": {"from": 0, "limit": 100}}}'
+        ])
+        
+        # XDR Story - Get details for a specific story by ID
+        cato_query("xdr story", ['{"storyId": "story-id-here"}'])
     """
     # Enforce filtering for high-volume operations to avoid oversized responses
     REQUIRES_FILTERING = ['appStats', 'appStatsTimeSeries', 'accountSnapshot', 'accountMetrics']
@@ -1016,7 +1027,10 @@ def cato_query(operation: str, args: list[str] = [], site_id: str = None, site_n
         return cached_result
     
     # Execute query
-    result = run_cato_command(["query", operation] + filtered_args)
+    # Split operation into parts to support sub-operations like "xdr stories"
+    operation_parts = operation.split()
+    cmd_args = ["query"] + operation_parts + filtered_args
+    result = run_cato_command(cmd_args)
     
     # Add warnings if any
     if warnings:
