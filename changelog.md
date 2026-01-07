@@ -19,3 +19,8 @@
 
 ### Features
 - Updated server file to include mappings if valid and invalid dimenstions and fields for several operations, as well as included possible valid fields for action for eventsTimeSeries. 
+
+## 0.0.6 (2025-01-07)
+
+### Features
+- Added xdr to the server config
