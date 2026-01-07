@@ -850,6 +850,23 @@ def cato_query(operation: str, args: list[str] = [], site_id: str = None, site_n
             operational events, forensics, or trend detection - ALWAYS use eventsTimeSeries.
             NEVER use eventsFeed for event analysis or questions about events.
             
+            XDR (Extended Detection and Response):
+            - xdr stories: Query XDR security stories (threat detections, incidents, investigations)
+              * Use when: Asked about security incidents, threat detections, XDR alerts, or investigations
+              * Example queries: "show me XDR stories", "security incidents last month", "threat detections"
+              * REQUIRED: storyInput with filter and paging parameters
+              * Filter options: timeFrame (required), status, severity, producer, analystVerdict, etc.
+              * Paging: Use "from" and "limit" for pagination (limit max 100 per request)
+              * Example:
+                cato_query("xdr stories", [
+                    '{"storyInput": {"filter": [{"timeFrame": {"time": "last.P1M"}}], "paging": {"from": 0, "limit": 100}}}'
+                ])
+            
+            - xdr story: Get details for a specific XDR story by ID
+              * Use when: Need detailed information about a specific security incident
+              * REQUIRED: storyId parameter
+              * Example: cato_query("xdr story", ['{"storyId": "abc123"}'])
+            
             - eventsTimeSeries: Security and network events over time with time buckets
               * Use when: Asked about security events, threats, firewall blocks, connectivity,
                 system status, configuration changes, or any event analysis
